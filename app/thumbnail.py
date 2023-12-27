@@ -1,6 +1,4 @@
-import requests
 import ffmpeg
-import sys
 
 
 def generate_thumbnail(video_filename):

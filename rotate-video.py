@@ -10,7 +10,7 @@ binName = 'rotate-video'
 if __name__ == "__main__":
     gettext.bindtextdomain(binName)
 
-    app = QApplication([])
+    app = QApplication(sys.argv)
 
     widget = MainWindow()
     widget.show()

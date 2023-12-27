@@ -1,4 +1,7 @@
-from PySide6.QtCore import QStandardPaths
+import ffmpeg
+import os
+from PySide6.QtAsyncio import QAsyncioEventLoopPolicy
+from PySide6.QtCore import QStandardPaths, Signal, Slot
 from PySide6.QtGui import Qt, QIcon, QPixmap, QTransform
 from PySide6.QtWidgets import (
     QMessageBox,
@@ -16,6 +19,8 @@ from app.thumbnail import generate_thumbnail
 
 
 class MainWindow(QMainWindow):
+    video_filter = _('Video Files (*.avi *.mkv *.mp4 *.webm)')
+
     def __init__(self,  parent: QWidget = None):
         super().__init__(parent)
 
@@ -53,25 +58,26 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        convert_save_button = QToolButton(self)
-        convert_save_button.setText(_('&Save'))
-        convert_save_button.setToolButtonStyle(
+        save_button = QToolButton(self)
+        save_button.setText(_('&Save'))
+        save_button.setToolButtonStyle(
             Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        convert_save_button.setIcon(QIcon.fromTheme('document-save'))
-        toolbar.addWidget(convert_save_button)
+        save_button.setIcon(QIcon.fromTheme('document-save'))
+        save_button.clicked.connect(self.save)
+        toolbar.addWidget(save_button)
 
-        convert_saveas_button = QToolButton(self)
-        convert_saveas_button.setText(_('Save &as...'))
-        convert_saveas_button.setToolButtonStyle(
+        saveas_button = QToolButton(self)
+        saveas_button.setText(_('Save &as...'))
+        saveas_button.setToolButtonStyle(
             Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        convert_saveas_button.setIcon(QIcon.fromTheme('document-save-as'))
-        toolbar.addWidget(convert_saveas_button)
+        saveas_button.setIcon(QIcon.fromTheme('document-save-as'))
+        saveas_button.clicked.connect(self.saveas)
+        toolbar.addWidget(saveas_button)
 
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
 
-        main_layout = QVBoxLayout(self)
-        central_widget.setLayout(main_layout)
+        main_layout = QVBoxLayout(central_widget)
 
         self.thumbnail_viewer = QLabel(self)
         self.thumbnail_viewer.setMinimumHeight(300)
@@ -84,15 +90,17 @@ class MainWindow(QMainWindow):
 
         self.rotate_degree = 0
 
+    @Slot()
     def open_file(self):
         video, pattern = QFileDialog.getOpenFileName(
             self,
             _('Open video'),
             QStandardPaths.standardLocations(QStandardPaths.HomeLocation)[0],
-            _('Video Files (*.avi *.mkv *.mp4 *.webm)'))
+            self.video_filter
+        )
         if (not video):
             return
-        self.video_file_path = video
+        self.input_filename = video
         try:
             thumbnail_filename = generate_thumbnail(video)
             self.thumbnail_pixmap.load(thumbnail_filename)
@@ -105,12 +113,14 @@ class MainWindow(QMainWindow):
                 _('Please make sure the video file is playable and accessible.')
             )
 
+    @Slot()
     def rotate_left(self):
         self.rotate_degree -= 90
         if (self.rotate_degree < 0):
             self.rotate_degree += 360
         self.render_thumbnail()
 
+    @Slot()
     def rotate_right(self):
         self.rotate_degree += 90
         if (self.rotate_degree >= 360):
@@ -128,3 +138,21 @@ class MainWindow(QMainWindow):
         self.thumbnail_viewer.setPixmap(
             transformed
         )
+
+    @Slot()
+    def save(self):
+        self.output_filename = self.input_filename + '~'
+        self.convert()
+
+    @Slot()
+    def saveas(self):
+        self.output_filename = QFileDialog.getSaveFileName(
+            self,
+            _('Save video as...'),
+            os.path.dirname(self.input_filename),
+            self.video_filter
+        )
+        self.convert()
+
+    def convert(self):
+        print('convert')
