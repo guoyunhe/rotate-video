@@ -3,4 +3,4 @@
 a simple app to rotate video
 
 - python3-pyside6
-- qt6-multimedia
+- python311-ffmpeg-python

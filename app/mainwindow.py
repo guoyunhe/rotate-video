@@ -1,7 +1,7 @@
-from PySide6.QtCore import QUrl
-from PySide6.QtCore import QTimer, QEventLoop
-from PySide6.QtGui import Qt, QIcon
+from PySide6.QtCore import QStandardPaths
+from PySide6.QtGui import Qt, QIcon, QPixmap, QTransform
 from PySide6.QtWidgets import (
+    QMessageBox,
     QFileDialog,
     QLabel,
     QMainWindow,
@@ -12,8 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from gettext import gettext as _
-from PySide6.QtGui import QImage
-from PySide6.QtMultimedia import QMediaPlayer, QVideoSink
+from app.thumbnail import generate_thumbnail
 
 
 class MainWindow(QMainWindow):
@@ -74,57 +73,58 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout(self)
         central_widget.setLayout(main_layout)
 
-        self.image_viewer = QLabel(self)
-        main_layout.addWidget(self.image_viewer)
+        self.thumbnail_viewer = QLabel(self)
+        self.thumbnail_viewer.setMinimumHeight(300)
+        self.thumbnail_pixmap = QPixmap()
+        main_layout.addWidget(self.thumbnail_viewer)
 
         progress_bar = QProgressBar(self)
         progress_bar.setValue(20)
         main_layout.addWidget(progress_bar)
 
+        self.rotate_degree = 0
+
     def open_file(self):
-        video, pattern = QFileDialog.getOpenFileName(self, _(
-            'Open video'), '/home/guo', _('Video Files (*.avi *.mkv *.mp4 *.webm)'))
+        video, pattern = QFileDialog.getOpenFileName(
+            self,
+            _('Open video'),
+            QStandardPaths.standardLocations(QStandardPaths.HomeLocation)[0],
+            _('Video Files (*.avi *.mkv *.mp4 *.webm)'))
+        if (not video):
+            return
         self.video_file_path = video
-        self.image = self.thumbnail(QUrl.fromLocalFile(video))
-        if (self.image):
-            self.image_viewer.setPixmap(self.image)
-
-    def thumbnail(self, url):
-        position = 0
-        image: QImage = None
-        loop = QEventLoop(self)
-        QTimer.singleShot(15000, lambda: loop.exit(1))
-        player = QMediaPlayer(self)
-        player.setVideoSink(sink := QVideoSink(self))
-        player.setSource(url)
-
-        def handle_status(status):
-            nonlocal position
-            print('status changed:', status.name)
-            # if status == QMediaPlayer.MediaStatus.LoadedMedia:
-            if status == QMediaPlayer.MediaStatus.BufferedMedia:
-                player.setPosition(position := player.duration() // 2)
-                print('set position:', player.position())
-
-        def handle_frame(frame):
-            nonlocal image
-            print('frame changed:', frame.startTime() // 1000)
-            if (start := frame.startTime() // 1000) and start >= position:
-                sink.videoFrameChanged.disconnect()
-                image = frame.toImage()
-                print('save: exit')
-                loop.exit()
-        player.mediaStatusChanged.connect(handle_status)
-        sink.videoFrameChanged.connect(handle_frame)
-        player.durationChanged.connect(
-            lambda value: print('duration changed:', value))
-        player.play()
-        if loop.exec() == 1:
-            print('ERROR: process timed out')
-        return image
+        try:
+            thumbnail_filename = generate_thumbnail(video)
+            self.thumbnail_pixmap.load(thumbnail_filename)
+            self.rotate_degree = 0
+            self.render_thumbnail()
+        except:
+            QMessageBox.critical(
+                self,
+                _('Failed to open video file'),
+                _('Please make sure the video file is playable and accessible.')
+            )
 
     def rotate_left(self):
-        print('left')
+        self.rotate_degree -= 90
+        if (self.rotate_degree < 0):
+            self.rotate_degree += 360
+        self.render_thumbnail()
 
     def rotate_right(self):
-        print('right')
+        self.rotate_degree += 90
+        if (self.rotate_degree >= 360):
+            self.rotate_degree -= 360
+        self.render_thumbnail()
+
+    def render_thumbnail(self):
+        trans = QTransform()
+        trans.rotate(self.rotate_degree)
+        transformed = self.thumbnail_pixmap.transformed(trans)
+        transformed = transformed.scaled(
+            self.thumbnail_viewer.size(),
+            Qt.AspectRatioMode.KeepAspectRatio
+        )
+        self.thumbnail_viewer.setPixmap(
+            transformed
+        )

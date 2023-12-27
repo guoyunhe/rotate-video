@@ -13,7 +13,6 @@ if __name__ == "__main__":
     app = QApplication([])
 
     widget = MainWindow()
-    widget.resize(800, 600)
     widget.show()
 
     status = app.exec()
