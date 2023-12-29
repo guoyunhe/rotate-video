@@ -1,6 +1,7 @@
-import ffmpeg
+import asyncio
+from ffmpeg.asyncio import FFmpeg
+from ffmpeg import Progress
 import os
-from PySide6.QtAsyncio import QAsyncioEventLoopPolicy
 from PySide6.QtCore import QStandardPaths, Signal, Slot
 from PySide6.QtGui import Qt, QIcon, QPixmap, QTransform
 from PySide6.QtWidgets import (
@@ -19,6 +20,7 @@ from app.thumbnail import generate_thumbnail
 
 
 class MainWindow(QMainWindow):
+    start_signal = Signal()
     video_filter = _('Video Files (*.avi *.mkv *.mp4 *.webm)')
 
     def __init__(self,  parent: QWidget = None):
@@ -142,17 +144,53 @@ class MainWindow(QMainWindow):
     @Slot()
     def save(self):
         self.output_filename = self.input_filename + '~'
-        self.convert()
+        self.async_start()
 
     @Slot()
     def saveas(self):
-        self.output_filename = QFileDialog.getSaveFileName(
+        video, pattern = QFileDialog.getSaveFileName(
             self,
             _('Save video as...'),
             os.path.dirname(self.input_filename),
             self.video_filter
         )
-        self.convert()
+        self.output_filename = video
+        self.async_start()
 
-    def convert(self):
+    @Slot()
+    def async_start(self):
+        self.start_signal.emit()
+
+    async def convert(self):
+        await asyncio.sleep(1)
         print('convert')
+        print(self.input_filename)
+        print(self.output_filename)
+        vf = ''
+        if self.rotate_degree == 90:
+            vf = 'transpose=1'
+        elif self.rotate_degree == 180:
+            vf = 'transpose=1,transpose=1'
+        elif self.rotate_degree == 270:
+            vf = 'transpose=2'
+        ffmpeg = (
+            FFmpeg()
+            .option('y')
+            .input(self.input_filename)
+            .output(
+                self.output_filename,
+                {
+                    "codec:a": "copy"
+                },
+                vf=vf
+            )
+        )
+
+        @ffmpeg.on("progress")
+        def on_progress(progress: Progress):
+            print(progress)
+
+        print('start')
+        result = await ffmpeg.execute()
+        print(result)
+        print('done')

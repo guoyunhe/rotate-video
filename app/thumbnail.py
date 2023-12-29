@@ -1,13 +1,23 @@
-import ffmpeg
+from ffmpeg import FFmpeg
 
 
 def generate_thumbnail(video_filename):
     thumbnail_filename = "/tmp/thumbnail.jpg"
-    probe = ffmpeg.probe(video_filename)
-    time = float(probe['streams'][0]['duration']) // 2
-    width = probe['streams'][0]['width']
 
-    ffmpeg.input(video_filename, ss=time).filter('scale', width, -1).output(thumbnail_filename,
-                                                                            vframes=1).overwrite_output().run(capture_stdout=True, capture_stderr=True)
+    ffmpeg = (
+        FFmpeg()
+        .option('y')
+        .input(video_filename, {
+            "ss": "5"
+        })
+        .output(
+            thumbnail_filename,
+            {
+                "filter:v": "scale=1280:-1",
+                "frames:v": "1",
+            },
+        )
+    )
+    ffmpeg.execute()
 
     return thumbnail_filename
