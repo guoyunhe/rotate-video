@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from gettext import gettext as _
+import traceback
 from app.thumbnail import generate_thumbnail
 
 
@@ -162,7 +163,6 @@ class MainWindow(QMainWindow):
         self.start_signal.emit()
 
     async def convert(self):
-        await asyncio.sleep(1)
         print('convert')
         print(self.input_filename)
         print(self.output_filename)
@@ -173,16 +173,13 @@ class MainWindow(QMainWindow):
             vf = 'transpose=1,transpose=1'
         elif self.rotate_degree == 270:
             vf = 'transpose=2'
+
         ffmpeg = (
             FFmpeg()
             .option('y')
             .input(self.input_filename)
             .output(
-                self.output_filename,
-                {
-                    "codec:a": "copy"
-                },
-                vf=vf
+                self.output_filename
             )
         )
 
@@ -190,7 +187,9 @@ class MainWindow(QMainWindow):
         def on_progress(progress: Progress):
             print(progress)
 
-        print('start')
-        result = await ffmpeg.execute()
-        print(result)
-        print('done')
+        try:
+            print('start')
+            await ffmpeg.execute()
+            print('done')
+        except Exception:
+            print(traceback.format_exc())
